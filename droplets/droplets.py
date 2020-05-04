@@ -9,6 +9,7 @@ Classes representing (perturbed) droplets in various dimensions
    DiffuseDroplet
    PerturbedDroplet2D
    PerturbedDroplet3D
+   HeterogenousSphericalDroplet
 
 
 Inheritance structure of the classes:
@@ -454,6 +455,55 @@ class SphericalDroplet(DropletBase):  # lgtm [py/missing-equals]
         circle = plt.Circle(self.position, self.radius, **kwargs)
         ax.add_artist(circle) 
         
+class HeterogenousSphericalDroplet(SphericalDroplet):
+    """ Represents a single, spherical droplet with an associated mesh size
+    and local pressure barrier. """
+    
+    def __init__(self, position: Sequence[float], radius: float, 
+                 mesh_size: float,
+                barrier_height: float):
+        r""" 
+        Args:
+            position (:class:`numpy.ndarray`):
+                Position of the droplet center
+            radius (float):
+                Radius of the droplet
+            mesh_size (float):
+                Mesh size at the droplet location
+            barrier_height (float):
+                Local highest equilibrium concentration 
+            
+        """
+        self._init_data(position=position)
+        
+        self.position = position
+        self.radius = radius
+        self.mesh_size = mesh_size
+        self.barrier_height = barrier_height
+        self.check_data()
+        
+    @classmethod
+    def get_dtype(cls, position):
+        position = np.atleast_1d(position)
+        dim = len(position)
+        return [('position', float, (dim,)), ('radius', float),('mesh_size',float),('barrier_height',float)]
+    
+#     Setters and getters
+    @property
+    def mesh_size(self) -> float:
+        return float(self.data['mesh_size'])
+    
+    @mesh_size.setter
+    def mesh_size(self, value: float):
+        self.data['mesh_size'] = value
+        
+    @property
+    def barrier_height(self) -> float:
+        return float(self.data['barrier_height'])
+    
+    @barrier_height.setter
+    def barrier_height(self, value: float):
+        self.data['barrier_height'] = value
 
 
 class DiffuseDroplet(SphericalDroplet):
