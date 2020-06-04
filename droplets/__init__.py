@@ -6,7 +6,8 @@ Functions and classes for analyzing emulsions and droplets
 
 __version__ = '0.3'
 
-from .droplets import SphericalDroplet, DiffuseDroplet, HeterogenousSphericalDroplet
+from .droplets import SphericalDroplet, DiffuseDroplet
+from .elastic_droplets import HeterogenousSphericalDroplet 
 from .droplet_tracks import DropletTrack, DropletTrackList
 from .emulsions import Emulsion, EmulsionTimeCourse
 from .image_analysis import (locate_droplets, get_structure_factor,
