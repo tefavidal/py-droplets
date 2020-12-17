@@ -12,30 +12,34 @@ Classes representing the time evolution of droplets
 """
 
 import json
-from typing import TYPE_CHECKING, Optional, Union
+import logging
+from typing import List  # @UnusedImport
+from typing import Optional, Union
 
 import numpy as np
 from numpy.lib import recfunctions as rfn
-from pde.grids.base import GridBase
-from pde.trackers.base import InfoDict
 from scipy.ndimage import filters
+from scipy.spatial import distance
+
+from pde.grids.base import GridBase
+from pde.storage.base import StorageBase
+from pde.tools.output import display_progress
+from pde.tools.plotting import plot_on_axes
+from pde.trackers.base import InfoDict
 
 from .droplets import SphericalDroplet, droplet_from_data
-
-if TYPE_CHECKING:
-    from .emulsions import EmulsionTimeCourse  # @UnusedImport
+from .emulsions import EmulsionTimeCourse
 
 
 def contiguous_true_regions(condition: np.ndarray) -> np.ndarray:
-    """ Finds contiguous True regions in the boolean array "condition"
-    
+    """Finds contiguous True regions in the boolean array "condition"
+
     Inspired by http://stackoverflow.com/a/4495197/932593
-    
+
     Args:
         condition (:class:`numpy.ndarray`):
             A one-dimensional boolean array
-            
-    
+
     Returns:
         :class:`numpy.ndarray`: A two-dimensional array where the first column
         is the start index of the region and the second column is the end index
@@ -181,10 +185,10 @@ class DropletTrack:
         return zip(self.times, self.droplets)
 
     def append(self, droplet: SphericalDroplet, time: Optional[float] = None):
-        """ append a new droplet with a time code
-        
+        """append a new droplet with a time code
+
         Args:
-            droplet (SphericalDroplet): the droplet
+            droplet (:class:`droplets.droplets.SphericalDroplet`): the droplet
             time (float, optional): The time point
         """
         if self.dim is not None and droplet.dim != self.dim:
@@ -199,8 +203,8 @@ class DropletTrack:
             time = 0 if len(self.times) == 0 else self.times[-1] + 1
         self.times.append(time)
 
-    def get_position(self, time: float):
-        """ numpy.ndarray: returns the droplet position at a specific time """
+    def get_position(self, time: float) -> np.ndarray:
+        """ :class:`numpy.ndarray`: returns the droplet position at a specific time """
         try:
             idx = self.times.index(time)
         except AttributeError:
@@ -208,16 +212,16 @@ class DropletTrack:
             idx = np.nonzero(self.times == time)[0][0]
         return self.droplets[idx].position
 
-    def get_trajectory(self, smoothing: float = 0):
-        """ return a list of positions over time
-        
+    def get_trajectory(self, smoothing: float = 0) -> np.ndarray:
+        """return a list of positions over time
+
         Args:
-            smoothing (float): Determines the length scale for some gaussian
-                smoothing of the trajectory. Setting this to zero disables
-                smoothing.
-        
+            smoothing (float):
+                Determines the length scale for some gaussian smoothing of the
+                trajectory. Setting this to zero disables smoothing.
+
         Returns:
-            numpy.ndarray: An array giving the position of the droplet at each
+            :class:`numpy.ndarray`: An array giving the position of the droplet at each
                 time instance
         """
         trajectory = np.array([droplet.position for droplet in self.droplets])
@@ -228,19 +232,19 @@ class DropletTrack:
         return trajectory
 
     def get_radii(self) -> np.ndarray:
-        """ returns the droplet radius for each time point """
+        """:class:`numpy.ndarray`: returns the droplet radius for each time point """
         return np.array([droplet.radius for droplet in self.droplets])
 
     def get_volumes(self) -> np.ndarray:
-        """ returns the droplet volume for each time point """
+        """:class:`numpy.ndarray`: returns the droplet volume for each time point """
         return np.array([droplet.volume for droplet in self.droplets])
 
     def time_overlaps(self, other: "DropletTrack") -> bool:
-        """ determine whether two DropletTrack instances overlaps in time
-        
+        """determine whether two DropletTrack instances overlaps in time
+
         Args:
             other (DropletTrack): The other droplet track
-            
+
         Returns:
             bool: True when both tracks contain droplets at the same time step
         """
@@ -250,8 +254,8 @@ class DropletTrack:
 
     @classmethod
     def _from_hdf_dataset(cls, dataset) -> "DropletTrack":
-        """ construct a droplet track by reading data from an hdf5 dataset
-        
+        """construct a droplet track by reading data from an hdf5 dataset
+
         Args:
             dataset:
                 an HDF5 dataset from which the data of the droplet track is read
@@ -273,8 +277,8 @@ class DropletTrack:
 
     @classmethod
     def from_file(cls, filename: str) -> "DropletTrack":
-        """ create droplet track by reading from file
-        
+        """create droplet track by reading from file
+
         Args:
             filename (str): Name of the file to read emulsion from
         """
@@ -304,7 +308,7 @@ class DropletTrack:
         return dataset
 
     def to_file(self, filename: str, info: InfoDict = None):
-        """ store data in hdf5 file
+        """store data in hdf5 file
 
         Args:
             filename (str): Name of the file to write emulsion to
@@ -319,19 +323,20 @@ class DropletTrack:
                 for k, v in info.items():
                     fp.attrs[k] = json.dumps(v)
 
-    def plot(self, attribute: str = "radius", **kwargs):
-        """ plot the time evolution of the droplet
-        
+    @plot_on_axes()
+    def plot(self, attribute: str = "radius", ax=None, **kwargs):
+        """plot the time evolution of the droplet
+
         Args:
             attribute (str):
                 The attribute to plot. Typical values include `radius` and
                 `volume`, but others might be defined on the droplet class.
+            {PLOT_ARGS}
             **kwargs:
-                Additional keyword arguments are passed to the matplotlib plot
-                function to affect the appearance.
+                All remaining parameters are forwarded to the `ax.plot` method. For
+                example, passing `color=None`, will use different colors for different
+                droplets.
         """
-        import matplotlib.pyplot as plt
-
         if len(self.times) == 0:
             return
 
@@ -345,41 +350,41 @@ class DropletTrack:
             data = [getattr(droplet, attribute) for droplet in self.droplets]
             ylabel = attribute.capitalize()
 
-        plt.plot(self.times, data, **kwargs)
-        plt.xlabel("Time")
-        plt.ylabel(ylabel)
+        ax.plot(self.times, data, **kwargs)
+        ax.set_xlabel("Time")
+        ax.set_ylabel(ylabel)
 
+    @plot_on_axes()
     def plot_positions(
-        self, grid: Optional[GridBase] = None, arrow: bool = True, **kwargs
+        self, grid: Optional[GridBase] = None, arrow: bool = True, ax=None, **kwargs
     ):
-        """ plot the droplet track
-        
+        """plot the droplet track
+
         Args:
             grid (GridBase, optional): The grid on which the droplets are
                 defined. If given, periodic boundary conditions can be respected
                 in the plotting.
             arrow (bool, optional): Flag determining whether an arrow head is
                 shown to indicate the direction of the droplet drift.
+            {PLOT_ARGS}
             **kwargs:
                 Additional keyword arguments are passed to the matplotlib plot
-                function to affect the appearance.
+                function to affect the appearance. For example, passing `color=None`,
+                will use different colors for different droplets.
         """
-        import matplotlib.pyplot as plt
-
         if len(self.times) == 0:
             return
 
         if self.dim != 2:
-            raise NotImplementedError(
-                "Plotting only implemented for two-dimensional grids"
-            )
+            raise NotImplementedError("Plotting is only implemented for 2d grids")
 
         # obtain droplet positions as a function of time
         xy = self.get_trajectory()
 
         if grid is None:
             # simply plot the trajectory
-            (line,) = plt.plot(xy[:, 0], xy[:, 1], **kwargs)
+            cx, cy = xy[:, 0], xy[:, 1]
+            (line,) = ax.plot(cx, cy, **kwargs)
 
         else:
             # use the grid to detect wrapping around
@@ -391,22 +396,23 @@ class DropletTrack:
                 segments.append(close)
 
             # plot the individual segments
-            line = None
+            line, cx = None, []
             for s, e in contiguous_true_regions(segments):
                 if line is None:
-                    color = kwargs.get("color")
+                    color = kwargs.get("color", "k")
                 else:
                     color = line.get_color()  # ensure colors stays the same
-                (line,) = plt.plot(xy[s : e + 1, 0], xy[s : e + 1, 1], color=color)
+                cx, cy = xy[s : e + 1, 0], xy[s : e + 1, 1]
+                (line,) = ax.plot(cx, cy, color=color)
 
-        if arrow and len(xy) >= 2:
-            size = min(sum(plt.xlim()), sum(plt.ylim()))
-            dx = xy[-1] - xy[-2]
-            plt.arrow(
-                xy[-2, 0],
-                xy[-2, 1],
-                dx[0],
-                dx[1],
+        if arrow and len(cx) >= 2:
+            # add arrow head to last segment
+            size = min(sum(ax.get_xlim()), sum(ax.get_ylim()))
+            ax.arrow(
+                cx[-2],
+                cy[-2],
+                cx[-1] - cx[-2],
+                cy[-1] - cy[-2],
                 head_width=0.02 * size,
                 color=line.get_color(),
             )
@@ -414,34 +420,6 @@ class DropletTrack:
 
 class DropletTrackList(list):
     """ a list of instances of :class:`DropletTrack` """
-
-    @classmethod
-    def from_emulsion_time_course(cls, time_course: "EmulsionTimeCourse"):
-        """ create the instance from an emulsion time course """
-        # get tracks, i.e. clearly overlapping droplets
-        tracks = cls()
-        t_last = None
-        for t, emulsion in time_course.items():
-            # determine live tracks
-            tracks_alive = [track for track in tracks if track.end <= t_last]
-
-            # handle all droplets in the emulsion
-            for droplet in emulsion:
-                overlap_count = 0
-                overlap_track: Optional[DropletTrack] = None
-                # iterate over all active tracks
-                for track in tracks_alive:
-                    if track.last.overlaps(droplet, time_course.grid):
-                        overlap_count += 1
-                        overlap_track = track
-
-                if overlap_count == 1:
-                    overlap_track.append(droplet, time=t)  # type: ignore
-                else:
-                    tracks.append(DropletTrack(droplets=[droplet], times=[t]))
-
-            t_last = t
-        return tracks
 
     def __getitem__(self, key: Union[int, slice]):
         """ return the droplets identified by the given index/slice """
@@ -451,27 +429,164 @@ class DropletTrackList(list):
         else:
             return result
 
-    def remove_short_tracks(self, min_duration: float = 0):
-        """ remove tracks that a shorter than a minimal duration
-        
+    @classmethod
+    def from_emulsion_time_course(
+        cls,
+        time_course: "EmulsionTimeCourse",
+        method: str = "overlap",
+        progress: bool = False,
+        **kwargs,
+    ):
+        r"""obtain droplet tracks from an emulsion time course
+
         Args:
-            min_duration (float): The minimal duration a droplet track must have
-                in order to be retained. This is measured in actual time and not
-                in the number of time steps stored in the track
+            time_course (:class:`droplets.emulsions.EmulsionTimeCourse`):
+                A collection of temporally arranged emulsions
+            method (str):
+                The method used for tracking droplet identities. Possible methods are
+                "overlap" (adding droplets that overlap with those in previous frames)
+                and "distance" (matching droplets to minimize center-to-center
+                distances).
+            progress (bool):
+                Whether to show the progress of the process.
+            **kwargs:
+                Additional parameters for the tracking algorithm. Currently, one can
+                only specify a maximal distance (using `max_dist`) for the "distance"
+                method.
+
+        Returns:
+            :class:`DropletTrackList`: the resulting droplet tracks
         """
-        for i in reversed(range(len(self))):
-            if self[i].duration <= min_duration:
-                self.pop(i)
+        # get tracks, i.e. clearly overlapping droplets
+        tracks = cls()
+        logger = logging.getLogger(cls.__name__)
+
+        # determine the tracking method
+        if method == "overlap":
+            # track droplets by their physical overlap
+
+            def match_tracks(emulsion, tracks_alive, time):
+                """ helper function adding emulsions to the tracks """
+                found_multiple_overlap = False
+                for droplet in emulsion:
+                    # determine which old tracks could be extended
+                    overlaps: List[DropletTrack] = []
+                    for track in tracks_alive:
+                        if track.last.overlaps(droplet, time_course.grid):
+                            overlaps.append(track)
+
+                    if len(overlaps) == 1:
+                        overlaps[0].append(droplet, time=time)
+                    else:
+                        if len(overlaps) > 1:
+                            found_multiple_overlap = True
+                        tracks.append(DropletTrack(droplets=[droplet], times=[time]))
+
+                if found_multiple_overlap:
+                    logger.debug(f"Found multiple overlapping droplet(s) at t={time}")
+
+        elif method == "distance":
+            # track droplets by their physical distance
+
+            max_dist = kwargs.pop("max_dist", np.inf)
+
+            def match_tracks(emulsion, tracks_alive, time):
+                """ helper function adding emulsions to the tracks """
+                added = set()
+
+                # calculate the distance between droplets
+                if tracks_alive:
+                    if time_course.grid is None:
+                        metric = "euclidean"
+                    else:
+                        metric = time_course.grid.distance_real
+                    points_prev = [track.last.position for track in tracks_alive]
+                    points_now = [droplet.position for droplet in emulsion]
+                    dists = distance.cdist(points_prev, points_now, metric=metric)
+
+                    # impose a cutoff distance
+                    dists[dists > max_dist] = np.inf
+
+                    # add all matching droplets
+                    while True:
+                        i, j = np.unravel_index(np.argmin(dists), dists.shape)
+                        if np.isinf(dists[i, j]):
+                            break  # no more matches
+                        added.add(j)
+                        tracks_alive[i].append(emulsion[j], time=time)
+                        dists[i, :] = np.inf
+                        dists[:, j] = np.inf
+
+                # add droplets that have not been matched
+                for i, droplet in enumerate(emulsion):
+                    if i not in added:
+                        tracks.append(DropletTrack(droplets=[droplet], times=[time]))
+
+        else:
+            raise ValueError(f"Unknown tracking method {method}")
+
+        # check kwargs
+        if kwargs:
+            logger.warning(f"Unused keyword arguments: {kwargs}")
+
+        # add all emulsions successively using the given algorithm
+        t_last = None
+        for t, emulsion in display_progress(
+            time_course.items(), total=len(time_course), enabled=progress
+        ):
+            # determine tracks from the last frame that have not yet been extended
+            tracks_alive = [track for track in tracks if track.end == t_last]
+            # match all tracks with the current emulsion
+            match_tracks(emulsion, tracks_alive, time=t)
+            t_last = t
+
+        return tracks
+
+    @classmethod
+    def from_storage(
+        cls,
+        storage: StorageBase,
+        refine: bool = False,
+        method: str = "overlap",
+        progress: bool = None,
+    ):
+        r"""obtain droplet tracks from stored scalar field data
+
+        This method first determines an emulsion time course and than collects tracks by
+        tracking droplets.
+
+        Args:
+            storage (:class:`~pde.storage.base.StorageBase`):
+                The phase fields for many time instances
+            refine (bool):
+                Flag determining whether the droplet properties should be refined
+                using fitting. This is a potentially slow procedure.
+            method (str):
+                The method used for tracking droplet identities. Possible methods are
+                "overlap" (adding droplets that overlap with those in previous frames)
+                and "distance" (matching droplets to minimize center-to-center
+                distances).
+            progress (bool):
+                Whether to show the progress of the process. If `None`, the progress is
+                not shown, except for the first step if `refine` is `True`.
+
+        Returns:
+            :class:`DropletTrackList`: the resulting droplet tracks
+        """
+        etc = EmulsionTimeCourse.from_storage(storage, refine=refine, progress=progress)
+        if progress is None:
+            progress = False
+        return cls.from_emulsion_time_course(etc, method=method, progress=progress)
 
     @classmethod
     def from_file(cls, filename: str) -> "DropletTrackList":
-        """ create droplet track list by reading file
-        
+        """create droplet track list by reading file
+
         Args:
             filename (str): The filename from which the data is read
-            
+
         Returns:
-            DropletTrackList: an instance describing the droplet track list
+            :class:`DropletTrackList`: an instance describing the droplet track list
         """
         import h5py
 
@@ -483,11 +598,11 @@ class DropletTrackList(list):
         return obj
 
     def to_file(self, filename: str, info: InfoDict = None):
-        """ store data in hdf5 file
-        
+        """store data in hdf5 file
+
         Args:
             filename (str): determines the location where the file is written
-            info (dict): can be additional data stored alongside 
+            info (dict): can be additional data stored alongside
         """
         import h5py
 
@@ -501,33 +616,58 @@ class DropletTrackList(list):
                 for k, v in info.items():
                     fp.attrs[k] = json.dumps(v)
 
-    def plot(self, attribute: str = "radius", **kwargs):
-        """ plot the time evolution of all droplets
-        
+    def remove_short_tracks(self, min_duration: float = 0) -> None:
+        """remove tracks that a shorter than a minimal duration
+
+        Args:
+            min_duration (float):
+                The minimal duration a droplet track must have in order to be retained.
+                This is measured in actual time and not in the number of time steps
+                stored in the track.
+        """
+        for i in reversed(range(len(self))):
+            if self[i].duration <= min_duration:
+                self.pop(i)
+
+    @plot_on_axes()
+    def plot(self, attribute: str = "radius", ax=None, **kwargs):
+        """plot the time evolution of all droplets
+
         Args:
             attribute (str):
                 The attribute to plot. Typical values include `radius` and
                 `volume`, but others might be defined on the droplet class.
+            {PLOT_ARGS}
             **kwargs:
                 Additional keyword arguments are passed to the matplotlib plot
-                function to affect the appearance.
+                function to affect the appearance. The special value `color="cycle"`
+                implies that the default color cycle is used for the tracks, using
+                different colors for different tracks.
         """
-        kwargs.setdefault("color", "k")
+        # choose a suitable color for the tracks
+        if "color" in kwargs:
+            if kwargs["color"] == "cycle":
+                kwargs.pop("color")  # if color is None, use the default color cycle
+        else:
+            kwargs["color"] = "k"  # use black by default
+
         # adjust alpha such that multiple tracks are visible well
         kwargs.setdefault("alpha", min(0.8, 20 / len(self)))
         for track in self:
-            track.plot(attribute=attribute, **kwargs)
+            track.plot(attribute=attribute, ax=ax, **kwargs)
 
-    def plot_positions(self, **kwargs):
-        """ plot all droplet tracks
-        
+    @plot_on_axes()
+    def plot_positions(self, ax=None, **kwargs):
+        """plot all droplet tracks
+
         Args:
+            {PLOT_ARGS}
             **kwargs:
                 Additional keyword arguments are passed to the matplotlib plot
                 function to affect the appearance.
         """
         for track in self:
-            track.plot_positions(**kwargs)
+            track.plot_positions(ax=ax, **kwargs)
 
 
 __all__ = ["DropletTrack", "DropletTrackList"]

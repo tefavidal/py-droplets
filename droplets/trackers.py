@@ -13,6 +13,7 @@ Module defining classes for tracking droplets in simulations.
 from typing import Callable, List, Optional, Union  # @UnusedImport
 
 import numpy as np
+
 from pde.fields.base import FieldBase
 from pde.trackers.base import InfoDict, TrackerBase
 from pde.trackers.intervals import IntervalData
@@ -21,13 +22,13 @@ from .emulsions import EmulsionTimeCourse
 
 
 class LengthScaleTracker(TrackerBase):
-    """ Tracker that stores length scales measured in simulations
-    
+    """Tracker that stores length scales measured in simulations
+
     Attributes:
         times (list):
             The time points at which the length scales are stored
         length_scales (list):
-            The associated length scales     
+            The associated length scales
     """
 
     def __init__(
@@ -69,8 +70,8 @@ class LengthScaleTracker(TrackerBase):
         self.verbose = verbose
 
     def handle(self, field: FieldBase, t: float):
-        """ handle data supplied to this tracker
-        
+        """handle data supplied to this tracker
+
         Args:
             field (:class:`~pde.fields.FieldBase`):
                 The current state of the simulation
@@ -93,14 +94,14 @@ class LengthScaleTracker(TrackerBase):
 
         # store data
         self.times.append(t)
-        self.length_scales.append(length)
+        self.length_scales.append(length)  # type: ignore
 
     def finalize(self, info: InfoDict = None) -> None:
-        """ finalize the tracker, supplying additional information
+        """finalize the tracker, supplying additional information
 
         Args:
             info (dict):
-                Extra information from the simulation        
+                Extra information from the simulation
         """
         super().finalize(info)
         if self.filename:
@@ -112,12 +113,12 @@ class LengthScaleTracker(TrackerBase):
 
 
 class DropletTracker(TrackerBase):
-    """ Detect droplets in a scalar field during simulations
-    
+    """Detect droplets in a scalar field during simulations
+
     This tracker is useful when only the parameters of actual droplets are
     needed, since it stores considerably less information compared to the full
-    scalar field. 
-    
+    scalar field.
+
     Attributes:
         data (:class:`~droplets.emulsions.EmulsionTimeCourse`):
             Contains the data of the tracked droplets after the simulation is
@@ -134,7 +135,7 @@ class DropletTracker(TrackerBase):
         refine: bool = False,
         perturbation_modes: int = 0,
     ):
-        """        
+        """
         Args:
             interval:
                 |Arg_tracker_interval|
@@ -161,7 +162,7 @@ class DropletTracker(TrackerBase):
             perturbation_modes (int):
                 An option describing how many perturbation modes should be
                 considered when refining droplets.
-                
+
         """
         super().__init__(interval=interval)
         if emulsion_timecourse is None:
@@ -175,13 +176,13 @@ class DropletTracker(TrackerBase):
         self.perturbation_modes = perturbation_modes
 
     def initialize(self, field: FieldBase, info: InfoDict = None) -> float:
-        """ 
+        """
         Args:
             field (:class:`~pde.fields.base.FieldBase`):
                 An example of the data that will be analyzed by the tracker
             info (dict):
-                Extra information from the simulation        
-                
+                Extra information from the simulation
+
         Returns:
             float: The first time the tracker needs to handle data
         """
@@ -195,8 +196,8 @@ class DropletTracker(TrackerBase):
         return super().initialize(field, info)
 
     def handle(self, field: FieldBase, t: float) -> None:
-        """ handle data supplied to this tracker
-        
+        """handle data supplied to this tracker
+
         Args:
             field (:class:`~pde.fields.base.FieldBase`):
                 The current state of the simulation
@@ -217,11 +218,11 @@ class DropletTracker(TrackerBase):
         self.data.append(emulsion, t)
 
     def finalize(self, info: InfoDict = None) -> None:
-        """ finalize the tracker, supplying additional information
+        """finalize the tracker, supplying additional information
 
         Args:
             info (dict):
-                Extra information from the simulation        
+                Extra information from the simulation
         """
         super().finalize(info)
         if self.filename:

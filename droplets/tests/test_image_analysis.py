@@ -5,18 +5,12 @@
 import numpy as np
 import pytest
 from numpy.lib.recfunctions import structured_to_unstructured
-from pde import (
-    CartesianGrid,
-    CylindricalGrid,
-    PolarGrid,
-    ScalarField,
-    SphericalGrid,
-    UnitGrid,
-)
 
-from .. import image_analysis
-from ..droplets import DiffuseDroplet, PerturbedDroplet2D, PerturbedDroplet3D
-from ..emulsions import Emulsion
+from droplets import image_analysis
+from droplets.droplets import DiffuseDroplet, PerturbedDroplet2D, PerturbedDroplet3D
+from droplets.emulsions import Emulsion
+from pde import ScalarField
+from pde.grids import CartesianGrid, CylindricalGrid, PolarGrid, SphericalGrid, UnitGrid
 
 
 @pytest.mark.parametrize("size", [16, 17])
@@ -81,7 +75,7 @@ def test_localization_perturbed_2d(periodic):
     pos = np.random.uniform(-4, 4, size=2)
     radius = np.random.uniform(2, 5)
     width = np.random.uniform(0.5, 1.5)
-    ampls = np.random.uniform(-0.01, 0.01, size=3)
+    ampls = np.random.uniform(-0.01, 0.01, size=4)
     d1 = PerturbedDroplet2D(pos, radius, interface_width=width, amplitudes=ampls)
 
     a = np.random.random(2) - size / 2
@@ -108,7 +102,7 @@ def test_localization_perturbed_3d(periodic):
     pos = np.random.uniform(-2, 2, size=3)
     radius = np.random.uniform(2, 3)
     width = np.random.uniform(0.5, 1.5)
-    ampls = np.random.uniform(-0.01, 0.01, size=7)
+    ampls = np.random.uniform(-0.01, 0.01, size=8)
     d1 = PerturbedDroplet3D(pos, radius, interface_width=width, amplitudes=ampls)
 
     a = np.random.random(3) - size / 2
