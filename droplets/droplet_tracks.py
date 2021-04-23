@@ -37,18 +37,18 @@ def contiguous_true_regions(condition: np.ndarray) -> np.ndarray:
     Inspired by http://stackoverflow.com/a/4495197/932593
 
     Args:
-        condition (:class:`numpy.ndarray`):
+        condition (:class:`~numpy.ndarray`):
             A one-dimensional boolean array
 
     Returns:
-        :class:`numpy.ndarray`: A two-dimensional array where the first column
+        :class:`~numpy.ndarray`: A two-dimensional array where the first column
         is the start index of the region and the second column is the end index
     """
     if len(condition) == 0:
-        return []
+        return np.empty((0, 2), dtype=np.intc)
 
     # convert condition array to integer
-    condition = np.asarray(condition, np.int)
+    condition = np.asarray(condition, np.intc)
 
     # Find the indices of changes in "condition"
     d = np.diff(condition)
@@ -67,7 +67,7 @@ def contiguous_true_regions(condition: np.ndarray) -> np.ndarray:
         idx = np.r_[idx, condition.size]
 
     # Reshape the result into two columns
-    return idx.reshape(-1, 2)
+    return idx.reshape(-1, 2).astype(np.intc)
 
 
 class DropletTrack:
@@ -204,13 +204,13 @@ class DropletTrack:
         self.times.append(time)
 
     def get_position(self, time: float) -> np.ndarray:
-        """ :class:`numpy.ndarray`: returns the droplet position at a specific time """
+        """ :class:`~numpy.ndarray`: returns the droplet position at a specific time """
         try:
             idx = self.times.index(time)
         except AttributeError:
             # assume that self.times is a numpy array
             idx = np.nonzero(self.times == time)[0][0]
-        return self.droplets[idx].position
+        return self.droplets[idx].position  # type: ignore
 
     def get_trajectory(self, smoothing: float = 0) -> np.ndarray:
         """return a list of positions over time
@@ -221,7 +221,7 @@ class DropletTrack:
                 trajectory. Setting this to zero disables smoothing.
 
         Returns:
-            :class:`numpy.ndarray`: An array giving the position of the droplet at each
+            :class:`~numpy.ndarray`: An array giving the position of the droplet at each
                 time instance
         """
         trajectory = np.array([droplet.position for droplet in self.droplets])
@@ -232,11 +232,11 @@ class DropletTrack:
         return trajectory
 
     def get_radii(self) -> np.ndarray:
-        """:class:`numpy.ndarray`: returns the droplet radius for each time point """
+        """:class:`~numpy.ndarray`: returns the droplet radius for each time point """
         return np.array([droplet.radius for droplet in self.droplets])
 
     def get_volumes(self) -> np.ndarray:
-        """:class:`numpy.ndarray`: returns the droplet volume for each time point """
+        """:class:`~numpy.ndarray`: returns the droplet volume for each time point """
         return np.array([droplet.volume for droplet in self.droplets])
 
     def time_overlaps(self, other: "DropletTrack") -> bool:
@@ -347,7 +347,7 @@ class DropletTrack:
             data = self.get_volumes()
             ylabel = "Volume"
         else:
-            data = [getattr(droplet, attribute) for droplet in self.droplets]
+            data = np.array([getattr(droplet, attribute) for droplet in self.droplets])
             ylabel = attribute.capitalize()
 
         ax.plot(self.times, data, **kwargs)
@@ -397,11 +397,13 @@ class DropletTrack:
 
             # plot the individual segments
             line, cx = None, []
-            for s, e in contiguous_true_regions(segments):
+            for s, e in contiguous_true_regions(np.array(segments)):
+
                 if line is None:
                     color = kwargs.get("color", "k")
                 else:
                     color = line.get_color()  # ensure colors stays the same
+
                 cx, cy = xy[s : e + 1, 0], xy[s : e + 1, 1]
                 (line,) = ax.plot(cx, cy, color=color)
 
